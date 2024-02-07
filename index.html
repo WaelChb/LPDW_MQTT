@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Weboscoket MQTT</title>
+        <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+        <link rel="stylesheet" href="style/styles.css">
+    </head>
+    <body>
+        Use WebSocket client to connect to MQTT server
+
+
+        <form id="subscribeForm">
+            <input type="text" id="topicInput" placeholder="Entrez le nom du topic">
+            <button type="submit">S'abonner</button>
+        </form>
+    
+        <form id="sendMessageForm">
+            <input type="text" id="messageInput" placeholder="Entrez votre message">
+            <button type="submit">Envoyer</button>
+        </form>
+
+
+        <div id="messageArea"></div>
+
+    </body>
+
+
+
+
+
+
+
+
+    <script>
+        const clientId = "mqttjs_" + Math.random().toString(16).substr(2, 8);
+        const host = "ws://broker.emqx.io:8083/mqtt";
+        const options = {
+            keepalive: 60,
+            clientId: clientId,
+            protocolId: "MQTT",
+            protocolVersion: 4,
+            clean: true,
+            reconnectPeriod: 1000,
+            connectTimeout: 30 * 1000,
+            will: {
+                topic: "WillMsg",
+                payload: "Connection Closed abnormally..!",
+                qos: 0,
+                retain: false,
+            },
+        };
+        console.log("Connecting mqtt client");
+        const client = mqtt.connect(host, options);
+
+        client.on("connect", () => {
+            console.log("Connecté au serveur en tant que : " + clientId);
+
+            client.subscribe("lpdw_annonces", { qos: 0 });
+            console.log("Abonné au topic lpdw_annonces !");
+
+            client.publish("lpdw_annonces", clientId + " is connected!", {
+                qos: 0,
+                retain: false,
+            });
+        });
+
+        client.on("message", (topic, message, packet) => {
+            console.log(
+                `Received Message: ${message.toString()} On topic: ${topic}`,
+            );
+        });
+
+        client.on("error", (err) => {
+            console.log("Connection error: ", err);
+            client.end();
+        });
+        client.on("reconnect", () => {
+            console.log("Reconnecting...");
+        });
+        const subscribeForm = document.getElementById("subscribeForm");
+        const sendMessageForm = document.getElementById("sendMessageForm");
+        const messageArea = document.getElementById("messageArea");
+
+        // Stocker les messages reçus par topic
+        const messages = {};
+
+        // Gestionnaire d'événement pour le formulaire d'abonnement
+        subscribeForm.addEventListener("submit", function(event) {
+            event.preventDefault(); // Empêcher le rechargement de la page
+
+            const topic = document.getElementById("topicInput").value;
+
+            // S'abonner au topic
+            client.subscribe(topic, { qos: 0 });
+            console.log("Abonné au topic " + topic + " !");
+        });
+
+        // Gestionnaire d'événement pour le formulaire d'envoi de message
+        sendMessageForm.addEventListener("submit", function(event) {
+            event.preventDefault(); // Empêcher le rechargement de la page
+
+            const message = document.getElementById("messageInput").value;
+            const topic = document.getElementById("topicInput").value; // Utiliser le même topic
+
+            // Envoyer le message sur le même topic
+            client.publish(topic, message, { qos: 0, retain: false });
+            console.log("Message envoyé sur le topic " + topic + " : " + message);
+        });
+
+        // Gestionnaire d'événement pour les messages reçus
+        client.on("message", function(topic, message) {
+            // Mettre à jour ou afficher le message correspondant au topic
+            messages[topic] = message.toString();
+            displayMessages();
+        });
+
+        // Fonction pour afficher les messages dans la zone de message
+        function displayMessages() {
+            for (const topic in messages) {
+                if (messages.hasOwnProperty(topic)) {
+                    const message = messages[topic];
+                    messageArea.innerHTML += `<p><strong>${topic}:</strong> ${message}</p>`;
+                }
+            }
+        }
+    </script>
+</html>
